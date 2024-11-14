@@ -10,6 +10,7 @@ export const JupiterAggregatorEventAuthority =
 export const SOL_DECIMALS = 9;
 export const PUMP_FUN_TOKEN_DECIMALS = 6;
 export const SOL_ADDRESS = "So11111111111111111111111111111111111111112";
+export const PUMP_FUN_ADDRESS = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P";
 
 export interface ParsedTokenAccountData {
   info: {
@@ -51,4 +52,5 @@ export interface Order {
   router_name?: string;
   fee: string;
   token_address?: string;
+  user: string;
 }

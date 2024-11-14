@@ -1,8 +1,9 @@
 import { Connection, ParsedInstruction, ParsedTransactionWithMeta, PartiallyDecodedInstruction, PublicKey } from "@solana/web3.js";
 import { Order } from "./constants";
+import { ILogger } from "@pefish/js-logger";
 export declare function findInnerInstructions(transaction: ParsedTransactionWithMeta, instructionIndex: number): (ParsedInstruction | PartiallyDecodedInstruction)[];
-export declare function sendRawTransactionByMultiNode(urls: string[], rawTransaction: Buffer | Uint8Array | Array<number>): Promise<string>;
-export declare function parseOrderTransaction(connection: Connection, txId: string): Promise<Order | null>;
+export declare function sendRawTransactionByMultiNode(logger: ILogger, urls: string[], rawTransaction: Buffer | Uint8Array | Array<number>): Promise<string>;
+export declare function parseOrderTransaction(logger: ILogger, connection: Connection, txId: string): Promise<Order | null>;
 export declare function getTweetMetrics(keyword: string, token: string): Promise<number>;
 export declare function getMetadataAccount(connection: Connection, tokenAddress: string): string;
 export declare function getTokenMetadata(connection: Connection, tokenAddress: string): Promise<{

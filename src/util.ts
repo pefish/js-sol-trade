@@ -7,7 +7,15 @@ import {
 import HttpUtil from "@pefish/js-http";
 import { StringUtil } from "@pefish/js-node-assist";
 import TimeUtil from "@pefish/js-util-time";
-import { publicKey, struct, u128, u64, u8 } from "@raydium-io/raydium-sdk-v2";
+import {
+  bool,
+  i64,
+  publicKey,
+  struct,
+  u128,
+  u64,
+  u8,
+} from "@raydium-io/raydium-sdk-v2";
 import {
   Connection,
   ParsedInnerInstruction,
@@ -25,12 +33,14 @@ import {
   JupiterAggregatorV6,
   Order,
   ParsedTransferTokenData,
+  PUMP_FUN_ADDRESS,
   PUMP_FUN_TOKEN_DECIMALS,
   RaydiumLiquidityPoolV4,
   SOL_ADDRESS,
   SOL_DECIMALS,
 } from "./constants";
 
+import { ILogger } from "@pefish/js-logger";
 import {
   getAccountInfo,
   getMultipleParsedAccounts,
@@ -60,6 +70,7 @@ export function findInnerInstructions(
 }
 
 export async function sendRawTransactionByMultiNode(
+  logger: ILogger,
   urls: string[],
   rawTransaction: Buffer | Uint8Array | Array<number>
 ): Promise<string> {
@@ -68,12 +79,12 @@ export async function sendRawTransactionByMultiNode(
     promises.push(
       (async () => {
         const connection = new Connection(url);
-        global.logger.info(`使用 ${url} 广播`);
+        logger.info(`使用 ${url} 广播`);
         const txid = await sendRawTransaction(connection, rawTransaction, {
           skipPreflight: true,
           maxRetries: 5,
         });
-        global.logger.info(`${url} 广播成功 ${txid}`);
+        logger.info(`${url} 广播成功 ${txid}`);
         return txid;
       })()
     );
@@ -96,10 +107,11 @@ export async function sendRawTransactionByMultiNode(
 }
 
 export async function parseOrderTransaction(
+  logger: ILogger,
   connection: Connection,
   txId: string
 ): Promise<Order | null> {
-  global.logger.debug(`parsing <${txId}>...`);
+  logger.debug(`parsing <${txId}>...`);
   const transaction = await getParsedTransaction(connection, txId);
   if (transaction.meta.err) {
     return null;
@@ -109,6 +121,7 @@ export async function parseOrderTransaction(
     sol_amount: "0",
     token_amount: "0",
     fee: "0",
+    user: transaction.transaction.message.accountKeys[0].pubkey.toString(),
   };
 
   for (const [
@@ -117,7 +130,7 @@ export async function parseOrderTransaction(
   ] of transaction.transaction.message.instructions.entries()) {
     switch (instruction.programId.toString()) {
       case RaydiumLiquidityPoolV4:
-        global.logger.debug(`<${txId}> is raydium swap`);
+        logger.debug(`<${txId}> is raydium swap`);
         const raydiumSwapInstruction =
           instruction as PartiallyDecodedInstruction;
         order.router_name = "RaydiumLiquidityPoolV4";
@@ -143,22 +156,22 @@ export async function parseOrderTransaction(
           .value[0].data as GetParsedAccountInfoData;
         const pcTokenAccountData: GetParsedAccountInfoData = coinPcAccounts
           .value[1].data as GetParsedAccountInfoData;
-        // global.logger.info(coinTokenAccountInfo);
+        // logger.info(coinTokenAccountInfo);
         let coinIsSol = false;
         if (coinTokenAccountData.parsed.info.isNative) {
-          // global.logger.info(`coin is sol`);
+          // logger.info(`coin is sol`);
           coinIsSol = true;
           order.token_address = pcTokenAccountData.parsed.info.mint;
         } else {
           order.token_address = coinTokenAccountData.parsed.info.mint;
         }
-        // global.logger.info(`token address is <${order.token_address}>`);
+        // logger.info(`token address is <${order.token_address}>`);
 
         const raydiumSwapInnerInstructions = findInnerInstructions(
           transaction,
           index
         );
-        // global.logger.info(raydiumSwapInnerInstructions);
+        // logger.info(raydiumSwapInnerInstructions);
         const transferParsedData0: ParsedTransferTokenData = (
           raydiumSwapInnerInstructions[0] as ParsedInstruction
         ).parsed;
@@ -191,7 +204,7 @@ export async function parseOrderTransaction(
         }
         break;
       case JupiterAggregatorV6:
-        global.logger.info(`<${txId}> is jupiter swap`);
+        logger.info(`<${txId}> is jupiter swap`);
         const jupiterSwapInstruction =
           instruction as PartiallyDecodedInstruction;
         order.router_name = "JupiterAggregatorV6";
@@ -210,7 +223,7 @@ export async function parseOrderTransaction(
         const swapEventInnerInstruction: PartiallyDecodedInstruction =
           jupiterSwapInnerInstructions[3] as PartiallyDecodedInstruction;
 
-        // global.logger.info(swapEventInnerInstruction);
+        // logger.info(swapEventInnerInstruction);
         let feeEventInnerInstruction: PartiallyDecodedInstruction = null;
         if (jupiterSwapInnerInstructions.length >= 6) {
           feeEventInnerInstruction =
@@ -233,7 +246,7 @@ export async function parseOrderTransaction(
           publicKey("outputMint"),
           u64("outputAmount"),
         ]).decode(bs58.decode(swapEventInnerInstruction.data));
-        // global.logger.info(swapEventParsedData);
+        // logger.info(swapEventParsedData);
         if (swapEventParsedData.inputMint.toString() == SOL_ADDRESS) {
           order.type = "buy";
           order.sol_amount = StringUtil.start(swapEventParsedData.inputAmount)
@@ -267,12 +280,63 @@ export async function parseOrderTransaction(
             .toString();
         }
         break;
+      case PUMP_FUN_ADDRESS:
+        logger.debug(`<${txId}> is pump fun swap`);
+        const pumpfunSwapInstruction =
+          instruction as PartiallyDecodedInstruction;
+        order.router_name = "PumpFun";
+        const methodHex = bs58
+          .decode(pumpfunSwapInstruction.data)
+          .subarray(0, 8)
+          .toString("hex");
+        if (
+          methodHex != "66063d1201daebea" &&
+          methodHex != "33e685a4017f83ad"
+        ) {
+          continue;
+        }
+
+        const pumpfunSwapInnerInstructions = findInnerInstructions(
+          transaction,
+          index
+        );
+        // logger.info(pumpfunSwapInnerInstructions);
+        const pumpfunLogInstruction = pumpfunSwapInnerInstructions[
+          pumpfunSwapInnerInstructions.length - 1
+        ] as PartiallyDecodedInstruction;
+        // logger.info(pumpfunLogInstruction);
+        const pumpfunSwapEventParsedData = struct([
+          u128("id"),
+          publicKey("mint"),
+          u64("solAmount"),
+          u64("tokenAmount"),
+          bool("isBuy"),
+          publicKey("user"),
+          i64("timestamp"),
+          u64("virtualSolReserves"),
+          u64("virtualTokenReserves"),
+        ]).decode(bs58.decode(pumpfunLogInstruction.data));
+        // logger.info(pumpfunSwapEventParsedData);
+
+        order.type = pumpfunSwapEventParsedData.isBuy ? "buy" : "sell";
+        order.sol_amount = StringUtil.start(
+          pumpfunSwapEventParsedData.solAmount
+        )
+          .unShiftedBy(SOL_DECIMALS)
+          .toString();
+        order.token_amount = StringUtil.start(
+          pumpfunSwapEventParsedData.tokenAmount
+        )
+          .unShiftedBy(PUMP_FUN_TOKEN_DECIMALS)
+          .toString();
+        order.token_address = pumpfunSwapEventParsedData.mint.toString();
+        break;
       default:
         continue;
     }
   }
   if (!order.type) {
-    global.logger.debug(`<${txId}> 没有找到交易`);
+    logger.debug(`<${txId}> 没有找到交易`);
     return null;
   }
 

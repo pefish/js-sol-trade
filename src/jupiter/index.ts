@@ -1,4 +1,5 @@
 import { Wallet } from "@coral-xyz/anchor";
+import { ILogger } from "@pefish/js-logger";
 import { StringUtil } from "@pefish/js-node-assist";
 import {
   AddressLookupTableAccount,
@@ -22,6 +23,7 @@ import {
 import { parseOrderTransaction, sendRawTransactionByMultiNode } from "../util";
 
 export async function placeOrder(
+  logger: ILogger,
   connection: Connection,
   priv: string,
   type: "buy" | "sell",
@@ -206,13 +208,17 @@ export async function placeOrder(
   const transaction = new VersionedTransaction(messageV0);
   transaction.sign([wallet.payer]);
   const rawTransaction = transaction.serialize();
-  const txId = await sendRawTransactionByMultiNode(nodeUrls, rawTransaction);
-  global.logger.info(`<${txId}> 广播成功`);
+  const txId = await sendRawTransactionByMultiNode(
+    logger,
+    nodeUrls,
+    rawTransaction
+  );
+  logger.info(`<${txId}> 广播成功`);
   await connection.confirmTransaction({
     abortSignal: abortSignal,
     signature: txId,
     ...latestBlockhashInfo,
   });
-  global.logger.info(`<${txId}> 已确认`);
-  return await parseOrderTransaction(connection, txId);
+  logger.info(`<${txId}> 已确认`);
+  return await parseOrderTransaction(logger, connection, txId);
 }
