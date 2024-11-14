@@ -585,7 +585,7 @@ export async function getRedditScore(
     },
     headers: {
       Authorization: `Bearer ${token}`,
-      "User-Agent": "YourAppName/1.0.0",
+      "User-Agent": "pefish_me/1.0.0",
     },
   });
   if (!response.data.data) {
