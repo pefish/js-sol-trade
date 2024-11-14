@@ -1,0 +1,51 @@
+{
+  "name": "@pefish/js-sol-trade",
+  "version": "0.0.1",
+  "description": "app_description",
+  "keywords": [
+    "common",
+    "js",
+    "tool",
+    "ether"
+  ],
+  "homepage": "https://github.com/pefish/js-sol-trade",
+  "bugs": "https://github.com/pefish/js-sol-trade/issues",
+  "license": "MIT",
+  "author": "pefish",
+  "types": "./types/index.d.ts",
+  "main": "./lib/index.js",
+  "engines": {
+    "node": "*"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pefish/js-sol-trade"
+  },
+  "scripts": {
+    "build": "rm -rf lib && rm -rf types && tsc",
+    "test": "mocha --timeout 60000 --exit --require ts-node/register src/**/*.test.ts",
+    "t": "mocha --timeout 60000 --exit --require ts-node/register",
+    "prepare": "npm run test && npm run build",
+    "prepublish": "check-node-version --npm \">=4\" || npm run prepare"
+  },
+  "devDependencies": {
+    "@types/chai": "^5.0.1",
+    "@types/mocha": "^10.0.9",
+    "@types/node": "^22.9.0",
+    "check-node-version": "^4.2.1",
+    "mocha": "^10.8.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.30.1",
+    "@metaplex-foundation/js": "^0.20.1",
+    "@pefish/js-http": "^0.2.1",
+    "@pefish/js-node-assist": "^2.1.0",
+    "@pefish/js-util-time": "^0.1.4",
+    "@solana/web3.js": "^1.95.4",
+    "axios": "^1.7.7",
+    "needle": "^3.3.1",
+    "@raydium-io/raydium-sdk-v2": "^0.1.73-alpha"
+  }
+}
